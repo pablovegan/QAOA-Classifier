@@ -1,2 +1,1 @@
-# Multiverse_assignment
-QAOA based classifier for detecting credit card fraud
+# QAOA based classifier for detecting credit card fraud
