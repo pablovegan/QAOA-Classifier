@@ -1,5 +1,6 @@
 import pennylane as qml
-
+from pennylane.optimize import AdamOptimizer
+from pennylane import numpy as np
 
 class Q_classifier(object):
     """
@@ -21,16 +22,21 @@ class Q_classifier(object):
  
     def __init__(self, depth) -> None:
         self.depth = depth
-
-    def encoding(self):
-        pass
     
     @staticmethod
-    def qaoa_layer(gamma, alpha):   
+    def qaoa_layer(gamma, alpha):
+        """"
+        Each QAOA circuit layer consists on the exp of Hc and the exp of Hm.
+        
+        Parmeters
+        ---------
+        gamma (float): Hc evolution time
+        alpha (float): Hm evolution time
+        """   
         qml.ApproxTimeEvolution(Q_classifier.Hc, gamma, 1)
         qml.ApproxTimeEvolution(Q_classifier.Hm, alpha, 1)
 
-    
+    @qml.qnode(dev)
     def qaoa_circ(self, params):
         """
         We use the QAOA ansatz as our circuit
@@ -47,19 +53,32 @@ class Q_classifier(object):
         [1] Farhi, Goldstone, Gutmann, "A Quantum Approximate
             Optimization Algorithm" (2014) arXiv:1411.4028
         """
-        # Initial state is a |+> state
-        qml.Hadamard(wires = 0)
+        qml.Hadamard(wires = 0)  # Initial state is a |+> state
         qml.layer(Q_classifier.qaoa_layer, self.depth, params[0], params[1])
+        return qml.expval(qml.PauliZ(0))
 
-
-    @qml.qnode(dev)
     def cost(self, params, labels):
         loss = 0.0
         for i in range(len(labels)):
             f = self.qaoa_circ(params, x[i], y[i])
+
             # If sign of label == sign of predicted -> smaller loss function
             loss = loss + (1 - f*labels[i])
         return loss / len(labels)
+
+    def optimize():
+        """Train the classifier using Adam optimizer."""
+        num_layers = 3
+        learning_rate = 0.6
+        epochs = 10
+        batch_size = 32
+
+        opt = AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
+        params = np.random.uniform(size=(num_layers, 3), requires_grad=True)
+
+
+
+
 
 
     def iterate_minibatches(inputs, targets, batch_size):
