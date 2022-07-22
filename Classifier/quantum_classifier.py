@@ -7,17 +7,12 @@ class Q_classifier(object):
 
     Attributes
     ----------
-    H : operator
-        Hamiltonian (Z Pauli gate)
-    dev: quantum device
-        Simulator for our circuit
+    dev (quantum device): Simulator for our circuit
 
     Methods
     -------
     método1 : returns whatever
-        descripción
     """
-    H = qml.PauliZ(0)
     dev = qml.device("default.qubit", wires=1)
  
     def __init__(self) -> None:
@@ -44,9 +39,10 @@ class Q_classifier(object):
         """
         # Initial state is a |+> state
         qml.Hadamard(wires = 0)
-    
-    def compute_expectation(self):
-        pass
+
+        # ESTRUCTURE OF QAOA CIRCUIT
+
+        return qml.expval(qml.PauliZ(0))
 
     def cost(self, params, labels):
         loss = 0.0
@@ -56,13 +52,19 @@ class Q_classifier(object):
             loss = loss + (1 - f*labels[i])
         return loss / len(labels)
 
-    def metric(self):
-        """"
-        As suggested in the description of the dataset,
-        we use AUROC as a metric for performance.
-
-        References
-        ----------
-        https://glassboxmedicine.com/2019/02/23/measuring-performance-auc-auroc/
+    def iterate_minibatches(inputs, targets, batch_size):
         """
-        pass
+        A generator for batches of the input data
+
+        Args:
+            inputs (array[float]): input data
+            targets (array[float]): targets
+
+        Returns:
+            inputs (array[float]): one batch of input data of length `batch_size`
+            targets (array[float]): one batch of targets of length `batch_size`
+        """
+        for start_idx in range(0, inputs.shape[0] - batch_size + 1, batch_size):
+            idxs = slice(start_idx, start_idx + batch_size)
+            yield inputs[idxs], targets[idxs]
+
