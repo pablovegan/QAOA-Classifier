@@ -1,6 +1,8 @@
 import pennylane as qml
 from pennylane.optimize import AdamOptimizer
 from pennylane import numpy as np
+from sklearn.metrics import roc_auc_score
+
 
 class Q_classifier(object):
     """
@@ -9,20 +11,41 @@ class Q_classifier(object):
     Attributes
     ----------
     dev (quantum device): Simulator for our circuit
-    Hc (Hamiltonian): Cost Hamiltonian of our QAOA circuit
-    Hm (Hamiltonian): Mixer Hamiltonian of our QAOA circuit
+    Hc (Hamiltonian): Cost Hamiltonian of QAOA circuit
+    Hm (Hamiltonian): Mixer Hamiltonian of QAOA circuit
+    depth (int): number of layers in QAOA circuit
 
     Methods
     -------
-    método1 : returns whatever
+    qaoa_layer: individual layer of QAOA circuit   
+    qaoa_circ: creates qaoa circuit and returns expected value of Hc
+    cost: returns the error of our classifier
+    iterate_minibatches: returns an iterator of mini-batches
+    optimize: minimizes cost function
+    metric: AUROC metric to check the performance of our optimizer
+
     """
     dev = qml.device("qulacs.simulator", wires=1) # qulacs is faster for simulating circuits
     Hc = qml.Hamiltonian([1.], [qml.PauliZ(0)])
     Hm = qml.Hamiltonian([1.], [qml.PauliX(0)])
     depth = 30
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, learning_rate: float = 0.6,
+                        epochs: int = 20,
+                        batch_size: int = 100) -> None:
+        '''
+        Initialize variables for our quantum optimizer class.
+        
+        Parameters
+        ----------
+        learning_rate (float): 
+        epochs (int): iterations of our optimizer
+        batch_size (int): sizes of the mini-batches used in each step of the gradient
+
+        '''
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+        self.batch_size = batch_size
     
     @staticmethod
     def qaoa_layer(t_Hc: float, t_Hm: float) -> None:
@@ -31,8 +54,9 @@ class Q_classifier(object):
         
         Parmeters
         ---------
-        gamma (float): Hc evolution time
-        alpha (float): Hm evolution time
+        t_Hc (float): Hc evolution time
+        t_Hm (float): Hm evolution time
+
         """   
         qml.ApproxTimeEvolution(Q_classifier.Hc, t_Hc, 1)
         qml.ApproxTimeEvolution(Q_classifier.Hm, t_Hm, 1)
@@ -42,20 +66,22 @@ class Q_classifier(object):
     @qml.qnode(dev)  # ,diff_method = 'adjoint'
     def qaoa_circ(Xi_train: np.ndarray, params: np.ndarray) -> float:
         """
-        We use the QAOA ansatz as our circuit
+        We use the QAOA ansatz as our circuit.
 
         Parmeters
         ---------
-        params (30 arraylike): parameters for our QAOA circuit
         Xi_data (30 arraylike): data to train our QAOA circuit
+        params (30 arraylike): parameters for our QAOA circuit
 
         Returns
         -------
+        expval (float): expected value of the Hamiltonian Hc
 
         References
         ----------
         [1] Farhi, Goldstone, Gutmann, "A Quantum Approximate
             Optimization Algorithm" (2014) arXiv:1411.4028
+
         """
         qml.Hadamard(wires = 0)  # Initial state is a |+> state
         qml.layer(Q_classifier.qaoa_layer, Q_classifier.depth, Xi_train, params)
@@ -77,50 +103,53 @@ class Q_classifier(object):
         Returns
         -------
         loss (float): error in the approximation
+
         """
         Yhat = np.array(self.qaoa_circ(X_train.T, params))
         loss = (1 - Yhat*(2*Y_train-1))
         return loss.sum()/len(Y_train)
-        
-        loss = 0.0
-        Yhat = np.zeros(len(Y_train))
-        for i in range(len(Y_train)):
-            Yhat[i] = self.qaoa_circ(X_train[i], params)
-            # If sign of label == sign of predicted -> smaller loss function
-            # Yhat has labels -1 and 1 while Y_train has labels 0 and 1.
-            loss = loss + (1 - Yhat[i]*(2*Y_train[i]-1)) # loss > 0
-        return loss / len(Y_train)
 
-
-
-    def optimize():
-        """Train the classifier using Adam optimizer."""
-        num_layers = 3
-        learning_rate = 0.6
-        epochs = 10
-        batch_size = 32
-
-        opt = AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
-        params = np.random.uniform(size=(num_layers, 3), requires_grad=True)
-
-        #params, _, _, _ = opt.step(self.cost, params, Xbatch, ybatch, state_labels)
-
-
-
-
-    def iterate_minibatches(X, Y, batch_size):
+    @staticmethod
+    def iterate_minibatches(X_train, Y_train, batch_size):
         """
-        A generator for batches of the input data
+        A generator for batches of the training data.
 
-        Args:
-            inputs (array[float]): input data
-            targets (array[float]): targets
+        Parameters
+        ----------
+        X_train (array[float]): features data
+        Y_train (array[float]): labels
 
-        Returns:
-            inputs (array[float]): one batch of input data of length `batch_size`
-            targets (array[float]): one batch of targets of length `batch_size`
+        Returns
+        -------
+        features (array[float]): one batch of features data of length `batch_size`
+        labels (array[float]): one batch of labels of length `batch_size`
+
         """
-        for start_idx in range(0, X.shape[0] - batch_size + 1, batch_size):
+        for start_idx in range(0, X_train.shape[0] - batch_size + 1, batch_size):
             idxs = slice(start_idx, start_idx + batch_size)
-            yield X[idxs], Y[idxs]
+            yield X_train[idxs], Y_train[idxs]
+
+    def optimize(self, X_train, Y_train):
+        """
+        Train the classifier using Adam optimizer by minimizing the cost function.
+        
+        Parameters
+        ----------
+        X_train (array[float]): features data
+        Y_train (array[float]): labels
+
+        """
+        opt = AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999)
+        params = np.random.uniform(Q_classifier.depth, requires_grad=True)
+        for it in range(self.epochs):
+            for X_batch, Y_batch in Q_classifier.iterate_minibatches(X_train, Y_train, batch_size=self.batch_size):
+                def intermediate_cost(params):
+                    return self.cost(params, X_batch, Y_batch)
+                params = opt.step(intermediate_cost, params)
+                # params, _, _ = opt.step(self.cost, params, X_batch, Y_batch)
+
+    def metric(Y_test, Yhat):
+        '''Returns area under the curve of the Receiver operating characteristic.'''
+        return roc_auc_score(Y_test, Yhat)
+
 
