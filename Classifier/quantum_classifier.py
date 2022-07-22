@@ -16,7 +16,7 @@ class Q_classifier(object):
     -------
     método1 : returns whatever
     """
-    dev = qml.device("default.qubit", wires=1)
+    dev = qml.device("qulacs.simulator", wires=1) # qulacs is faster for simulating circuits
     Hc = qml.Hamiltonian([1.], [qml.PauliZ(0)])
     Hm = qml.Hamiltonian([1.], [qml.PauliX(0)])
     depth = 30
@@ -25,7 +25,7 @@ class Q_classifier(object):
         pass
     
     @staticmethod
-    def qaoa_layer(t_Hc, t_Hm):
+    def qaoa_layer(t_Hc: float, t_Hm: float) -> None:
         """"
         Each QAOA circuit layer consists on the exp of Hc and the exp of Hm.
         
@@ -37,8 +37,10 @@ class Q_classifier(object):
         qml.ApproxTimeEvolution(Q_classifier.Hc, t_Hc, 1)
         qml.ApproxTimeEvolution(Q_classifier.Hm, t_Hm, 1)
 
-    @qml.qnode(dev)
-    def qaoa_circ(self, Xi_train, params):
+    
+    @staticmethod
+    @qml.qnode(dev)  # ,diff_method = 'adjoint'
+    def qaoa_circ(Xi_train: np.ndarray, params: np.ndarray) -> float:
         """
         We use the QAOA ansatz as our circuit
 
@@ -59,7 +61,7 @@ class Q_classifier(object):
         qml.layer(Q_classifier.qaoa_layer, Q_classifier.depth, Xi_train, params)
         return qml.expval(qml.PauliZ(0))
 
-    def cost(self, params, X_train, Y_train):
+    def cost(self, params: np.ndarray, X_train: np.ndarray, Y_train: np.ndarray) -> float:
         """"
         Cost function deppends on a set of parameters, which will be the time
         we evolve the mixer hamiltonian Hm in each layer layer. The time we evolve
@@ -76,13 +78,20 @@ class Q_classifier(object):
         -------
         loss (float): error in the approximation
         """
+        Yhat = np.array(self.qaoa_circ(X_train.T, params))
+        loss = (1 - Yhat*(2*Y_train-1))
+        return loss.sum()/len(Y_train)
+        
         loss = 0.0
         Yhat = np.zeros(len(Y_train))
         for i in range(len(Y_train)):
             Yhat[i] = self.qaoa_circ(X_train[i], params)
             # If sign of label == sign of predicted -> smaller loss function
-            loss = loss + (1 - Yhat[i]*Y_train[i])
+            # Yhat has labels -1 and 1 while Y_train has labels 0 and 1.
+            loss = loss + (1 - Yhat[i]*(2*Y_train[i]-1)) # loss > 0
         return loss / len(Y_train)
+
+
 
     def optimize():
         """Train the classifier using Adam optimizer."""
@@ -94,14 +103,12 @@ class Q_classifier(object):
         opt = AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
         params = np.random.uniform(size=(num_layers, 3), requires_grad=True)
 
-        params, _, _, _ = opt.step(self.cost, params, Xbatch, ybatch, state_labels)
+        #params, _, _, _ = opt.step(self.cost, params, Xbatch, ybatch, state_labels)
 
 
 
 
-
-
-    def iterate_minibatches(inputs, targets, batch_size):
+    def iterate_minibatches(X, Y, batch_size):
         """
         A generator for batches of the input data
 
@@ -113,7 +120,7 @@ class Q_classifier(object):
             inputs (array[float]): one batch of input data of length `batch_size`
             targets (array[float]): one batch of targets of length `batch_size`
         """
-        for start_idx in range(0, inputs.shape[0] - batch_size + 1, batch_size):
+        for start_idx in range(0, X.shape[0] - batch_size + 1, batch_size):
             idxs = slice(start_idx, start_idx + batch_size)
-            yield inputs[idxs], targets[idxs]
+            yield X[idxs], Y[idxs]
 

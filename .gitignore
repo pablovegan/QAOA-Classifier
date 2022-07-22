@@ -8,6 +8,8 @@ creditcard.csv
 
 # Other files
 pruebas.ipynb
+X.npy
+Y.npy
 
 # C extensions
 *.so
