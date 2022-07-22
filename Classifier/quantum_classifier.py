@@ -19,12 +19,13 @@ class Q_classifier(object):
     dev = qml.device("default.qubit", wires=1)
     Hc = qml.Hamiltonian([1.], [qml.PauliZ(0)])
     Hm = qml.Hamiltonian([1.], [qml.PauliX(0)])
- 
-    def __init__(self, depth) -> None:
-        self.depth = depth
+    depth = 30
+
+    def __init__(self) -> None:
+        pass
     
     @staticmethod
-    def qaoa_layer(gamma, alpha):
+    def qaoa_layer(t_Hc, t_Hm):
         """"
         Each QAOA circuit layer consists on the exp of Hc and the exp of Hm.
         
@@ -33,17 +34,18 @@ class Q_classifier(object):
         gamma (float): Hc evolution time
         alpha (float): Hm evolution time
         """   
-        qml.ApproxTimeEvolution(Q_classifier.Hc, gamma, 1)
-        qml.ApproxTimeEvolution(Q_classifier.Hm, alpha, 1)
+        qml.ApproxTimeEvolution(Q_classifier.Hc, t_Hc, 1)
+        qml.ApproxTimeEvolution(Q_classifier.Hm, t_Hm, 1)
 
     @qml.qnode(dev)
-    def qaoa_circ(self, params):
+    def qaoa_circ(self, Xi_train, params):
         """
         We use the QAOA ansatz as our circuit
 
         Parmeters
         ---------
-        params (2xdepth arraylike): parameters for our QAOA circuit
+        params (30 arraylike): parameters for our QAOA circuit
+        Xi_data (30 arraylike): data to train our QAOA circuit
 
         Returns
         -------
@@ -54,17 +56,33 @@ class Q_classifier(object):
             Optimization Algorithm" (2014) arXiv:1411.4028
         """
         qml.Hadamard(wires = 0)  # Initial state is a |+> state
-        qml.layer(Q_classifier.qaoa_layer, self.depth, params[0], params[1])
+        qml.layer(Q_classifier.qaoa_layer, Q_classifier.depth, Xi_train, params)
         return qml.expval(qml.PauliZ(0))
 
-    def cost(self, params, labels):
-        loss = 0.0
-        for i in range(len(labels)):
-            f = self.qaoa_circ(params, x[i], y[i])
+    def cost(self, params, X_train, Y_train):
+        """"
+        Cost function deppends on a set of parameters, which will be the time
+        we evolve the mixer hamiltonian Hm in each layer layer. The time we evolve
+        Hc will be given by the features of our model. Thus, there will be 30 layers,
+        since our data has 30 features.  Whereas exp(i*Hc*t) changes the phase of our
+        state, exp(i*Hm*t) changes the probabilities of measuring |0> and |1>.
 
+        Parameters
+        ----------
+        params (30 arraylike): variational parameters of our circuit
+        X_data (rowsx30 arraylike): data to train our QAOA circuit
+
+        Returns
+        -------
+        loss (float): error in the approximation
+        """
+        loss = 0.0
+        Yhat = np.zeros(len(Y_train))
+        for i in range(len(Y_train)):
+            Yhat[i] = self.qaoa_circ(X_train[i], params)
             # If sign of label == sign of predicted -> smaller loss function
-            loss = loss + (1 - f*labels[i])
-        return loss / len(labels)
+            loss = loss + (1 - Yhat[i]*Y_train[i])
+        return loss / len(Y_train)
 
     def optimize():
         """Train the classifier using Adam optimizer."""
@@ -75,6 +93,8 @@ class Q_classifier(object):
 
         opt = AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
         params = np.random.uniform(size=(num_layers, 3), requires_grad=True)
+
+        params, _, _, _ = opt.step(self.cost, params, Xbatch, ybatch, state_labels)
 
 
 
