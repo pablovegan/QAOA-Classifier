@@ -42,6 +42,9 @@ if __name__ == '__main__':
     del(Y)
 
     # TRAINING CLASSICAL CLASSIFIER
+    print('-'*30)
+    print('Run the classical classifier')
+    print('-'*30)
     # Support Vector Machine Classifier
     clf = svm.SVC(kernel='rbf')
     clf.fit(X_train, Y_train.ravel()) 
@@ -50,5 +53,9 @@ if __name__ == '__main__':
     print('The AUROC score for SVM classifier is {a}\n'.format(a = roc_auc_score(Y_test, Yhat)))
 
     # TRAINING QUANTUM CLASSIFIER
+    print('-'*30)
+    print('Run the quantum classifier')
+    print('-'*30)
+
     QClass = Q_classifier(X_train, Y_train, X_test, Y_train)
     QClass.optimize_circ()
