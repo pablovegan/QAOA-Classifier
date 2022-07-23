@@ -10,6 +10,8 @@ creditcard.csv
 pruebas.ipynb
 X.npy
 Y.npy
+no_class_classifier.py
+Classifier/metrics.py
 
 # C extensions
 *.so
