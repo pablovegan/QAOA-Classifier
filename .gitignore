@@ -12,6 +12,7 @@ X.npy
 Y.npy
 no_class_classifier.py
 Classifier/metrics.py
+__MACOSX
 
 # C extensions
 *.so

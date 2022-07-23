@@ -38,7 +38,6 @@ class Q_classifier(object):
     dev = qml.device("qulacs.simulator", wires=1) # qulacs is faster for simulating circuits
     Hc = qml.Hamiltonian([1.], [qml.PauliZ(0)])
     Hm = qml.Hamiltonian([1.], [qml.PauliX(0)])
-    depth = 30
 
     def __init__(self,
                 X_train: np.ndarray,
@@ -56,6 +55,7 @@ class Q_classifier(object):
         self.Y_train = Y_train
         self.X_test = X_test
         self.Y_test = Y_test
+        Q_classifier.depth = X_train.shape[1]
     
     @staticmethod
     def qaoa_layer(t_Hc: float, t_Hm: float) -> None:
@@ -72,7 +72,6 @@ class Q_classifier(object):
         qml.ApproxTimeEvolution(Q_classifier.Hm, t_Hm, 1)
 
     
-    @staticmethod
     @qml.qnode(dev)  # ,diff_method = 'adjoint'
     def qaoa_circ(Xi_train: np.ndarray, params: np.ndarray) -> float:
         """
@@ -155,17 +154,24 @@ class Q_classifier(object):
         return roc_auc_score(Y_test, Yhat)
 
     def optimize_circ(self):
-        """ Train the classifier using Adam optimizer by minimizing the cost function."""
+        """ 
+        Train the classifier using Adam optimizer by minimizing the cost function.
+        
+        Returns
+        -------
+        params (np.ndarray): array of optimal parameters
+
+        """
         opt = AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999)
         
         params = np.random.uniform(Q_classifier.depth, requires_grad=True)
 
         for t in range(self.epochs):
-            for X_batch, Y_batch in self.iterate_minibatches(self.batch_size):
+            #for X_batch, Y_batch in self.iterate_minibatches(self.batch_size):
                 # def intermediate_cost(params):
                     # return Q_classifier.cost(params, X_batch, Y_batch)
                 # params = opt.step(intermediate_cost, params)
-                params = opt.step(self.cost, params, grad_fn=None)
+            params = opt.step(self.cost, params, grad_fn=None)
                 
             Yhat_train = Q_classifier.qaoa_circ(self.X_train.T, params)
             Yhat_test= Q_classifier.qaoa_circ(self.X_test.T, params)
@@ -173,4 +179,7 @@ class Q_classifier(object):
             res = [t + 1, loss, Q_classifier.metric(self.Y_train, Yhat_train),
                     Q_classifier.metric(self.Y_test, Yhat_test)]
             print("Epoch: {:2d} | Loss: {:3f} | Train AUROC: {:3f} | Test AUROC: {:3f}".format(*res))
+
+        return params
+
 
