@@ -8,7 +8,7 @@ import pickle
 
 import qml_model
 import test_functions
-import qml_optimizer
+# import qml_optimizer
 
 def error_perceptron(φ: np.ndarray,
                     function: str = 'gaussian',
