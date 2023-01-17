@@ -29,7 +29,6 @@ class Circuit(ABC):
         device_name : srt
             The name of the quantum device to use as backend.
         """
-
         self.wires = wires
         self.dev = qml.device(device_name, wires=wires)
 
