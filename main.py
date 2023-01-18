@@ -8,6 +8,7 @@ import pandas as pd
 from pennylane import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
 from sklearn import svm
 
 from qaoaclassifier import QuantumClassifier, QaoaCircuit, Circuit
@@ -41,6 +42,21 @@ if __name__ == "__main__":
     Y_train = Y_train.ravel()
     Y_test = Y_test.ravel()
 
+    # TRAINING QUANTUM CLASSIFIER
+    print("-" * 30)
+    print("Run the quantum classifier")
+    print("-" * 30)
+
+    circuit = QaoaCircuit(layers=X_train.shape[1] // 2, wires=1)
+    model = QuantumClassifier(circuit)
+    skf = StratifiedKFold(n_splits=15, shuffle=True, random_state=1)
+
+    for train_index, test_index in skf.split(X, Y):
+        X_train, X_test = X[train_index], X[test_index]
+        Y_train, Y_train = Y[train_index], Y[test_index]
+        model.fit(X_train, Y_train, X_test, Y_train)
+
+    print("\n")
     # TRAINING CLASSICAL CLASSIFIER
     print("-" * 30)
     print("Run the classical classifier")
@@ -51,13 +67,3 @@ if __name__ == "__main__":
     Yhat = clf.predict(X_test)
     # Metric
     print(f"The AUROC score for SVM classifier is {roc_auc_score(Y_test, Yhat)}\n")
-
-    # TRAINING QUANTUM CLASSIFIER
-    print("-" * 30)
-    print("Run the quantum classifier")
-    print("-" * 30)
-
-    circuit = QaoaCircuit(layers=X_train.shape[1] // 2, wires=1, device_name="qulacs.simulator")
-
-    model = QuantumClassifier(circuit)
-    model.fit(X_train, Y_train, X_test, Y_train)

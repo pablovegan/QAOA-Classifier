@@ -25,9 +25,10 @@ class QuantumClassifier:
     ) -> None:
         """Initialize instance attributes for our quantum optimizer class."""
         self.circuit = circuit
-        self.learning_rate = learning_rate
         self.epochs = epochs
         self.batch_size = batch_size
+        self.params = None
+        self.opt = AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999)
 
     def fit(self, X_train: np.ndarray, Y_train: np.ndarray, X_test: np.ndarray, Y_test: np.ndarray):
         """
@@ -39,17 +40,18 @@ class QuantumClassifier:
         """
         assert X_train.shape[1] % 2 == 0, "Number of columns of the data must be even."
 
-        opt = AdamOptimizer(self.learning_rate, beta1=0.9, beta2=0.999)
-
-        params = np.random.uniform(2 * self.circuit.layers, requires_grad=True)
+        if self.params is None:
+            params = np.random.randn(2 * self.circuit.layers, requires_grad=True)
+        else:
+            params = self.params
 
         for t in range(self.epochs):
             # for X_batch, Y_batch in self.iterate_minibatches(X_train, Y_train, self.batch_size):
             # def intermediate_cost(params):
             # return Q_classifier.cost(params, X_batch, Y_batch)
-            # params = opt.step(intermediate_cost, params)
-
-            params = opt.step(self.cost, params, grad_fn=None, X_train=X_train, Y_train=Y_train)
+            params = self.opt.step(
+                self.cost, params, grad_fn=None, X_train=X_train, Y_train=Y_train
+            )
 
             loss, Yhat_train = self.cost(params, X_train=X_train, Y_train=Y_train, return_Yhat=True)
 
@@ -60,16 +62,23 @@ class QuantumClassifier:
             Yhat_train = np.array(Yhat_train)
             Yhat_test = np.array(Yhat_test)
 
+            print(f"Yhat_train {Yhat_train}")
+            print(f"Yhat_test {Yhat_test}")
+            print(f"Yhat_train {Y_train}")
+            print(f"Y_test {Y_test}")
+
             try:
                 train_score = roc_auc_score(Y_train, Yhat_train)
+            except ValueError:
+                train_score = 0
+            try:
                 test_score = roc_auc_score(Y_test, Yhat_test)
             except ValueError:
-                pass
-
+                test_score = 0
             print(
                 f"Epoch: {t} | Loss: f{loss} | Train AUROC: {train_score} | Test AUROC: {test_score}"
             )
-
+        self.params = params
         return params
 
     def iterate_minibatches(self, X_train: np.ndarray, Y_train: np.ndarray, batch_size: int):
@@ -106,7 +115,7 @@ class QuantumClassifier:
 
         Parameters
         ----------
-        params (30 arraylike): variational parameters of our circuit
+        params (arraylike): variational parameters of our circuit
 
         Returns
         -------
