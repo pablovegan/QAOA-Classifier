@@ -93,7 +93,7 @@ class QaoaCircuit(Circuit):
 
     __slots__ = ("layers",)  # faster memory access to the attributes than using __dict__
 
-    def __init__(self, layers: int, wires: int, device_name: str = "qulacs.simulator"):
+    def __init__(self, layers: int, wires: int, device_name: str = "default.qubit"):
         """
         Initialize the Circuit class.
 

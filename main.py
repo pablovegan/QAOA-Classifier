@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 from sklearn import svm
 
-from qaoaclassifier import QuantumClassifier
+from qaoaclassifier import QuantumClassifier, QaoaCircuit, Circuit
 
 
 if __name__ == "__main__":
@@ -57,5 +57,7 @@ if __name__ == "__main__":
     print("Run the quantum classifier")
     print("-" * 30)
 
-    model = QuantumClassifier()
+    circuit = QaoaCircuit(layers=X_train.shape[1] // 2, wires=1, device_name="qulacs.simulator")
+
+    model = QuantumClassifier(circuit)
     model.fit(X_train, Y_train, X_test, Y_train)

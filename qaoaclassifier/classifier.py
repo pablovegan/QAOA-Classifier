@@ -49,15 +49,25 @@ class QuantumClassifier:
             # return Q_classifier.cost(params, X_batch, Y_batch)
             # params = opt.step(intermediate_cost, params)
 
-            params = opt.step(self.cost, params, grad_fn=None)
+            params = opt.step(self.cost, params, grad_fn=None, X_train=X_train, Y_train=Y_train)
 
-            Yhat_train = self.circuit.expval(X_train.T)
-            Yhat_test = self.circuit.expval(X_test.T)
+            loss, Yhat_train = self.cost(params, X_train=X_train, Y_train=Y_train, return_Yhat=True)
 
-            loss = self.cost(params, Y_train=Y_train)
-            res = [t, loss, roc_auc_score(Y_train, Yhat_train), roc_auc_score(Y_test, Yhat_test)]
+            Yhat_test = []
+            for i in range(X_test.shape[0]):
+                enc_data = X_test[i, :] * params
+                Yhat_test.append(self.circuit.expval(enc_data.reshape(-1, 2)))
+            Yhat_train = np.array(Yhat_train)
+            Yhat_test = np.array(Yhat_test)
+
+            try:
+                train_score = roc_auc_score(Y_train, Yhat_train)
+                test_score = roc_auc_score(Y_test, Yhat_test)
+            except ValueError:
+                pass
+
             print(
-                f"Epoch: {res[0]} | Loss: f{res[1]} | Train AUROC: {res[2]} | Test AUROC: {res[3]}"
+                f"Epoch: {t} | Loss: f{loss} | Train AUROC: {train_score} | Test AUROC: {test_score}"
             )
 
         return params
@@ -80,7 +90,13 @@ class QuantumClassifier:
             idxs = slice(start_idx, start_idx + batch_size)
             yield X_train[idxs], Y_train[idxs]
 
-    def cost(self, params: np.ndarray, Y_train: np.ndarray = None) -> float:
+    def cost(
+        self,
+        params: np.ndarray,
+        X_train: np.ndarray = None,
+        Y_train: np.ndarray = None,
+        return_Yhat=False,
+    ) -> float:
         """
         Using the predictions expectation values given by our circuit, we can build
         a cost function in such a way that if the signs of the guess and actual label
@@ -97,7 +113,11 @@ class QuantumClassifier:
         loss (float): error in the approximation
         """
         loss = 0
-        for i in range(params.shape[0]):
-            Yhat = self.circuit.expval(params[i, :].reshape(-1, 2))
+        Yhat_train = []
+        for i in range(X_train.shape[0]):
+            enc_data = X_train[i, :] * params
+            Yhat = self.circuit.expval(enc_data.reshape(-1, 2))
+            Yhat_train.append(Yhat)
             loss = 1 - Yhat * (1 - 2 * Y_train[i])
-        return loss / params.shape[0]
+            loss = loss / X_train.shape[0]
+        return loss if return_Yhat is False else loss, Yhat_train
